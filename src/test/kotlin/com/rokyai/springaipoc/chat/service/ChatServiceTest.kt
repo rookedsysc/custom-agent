@@ -1,18 +1,17 @@
 package com.rokyai.springaipoc.chat.service
 
 import com.rokyai.springaipoc.chat.dto.ChatRequest
-import io.mockk.coEvery
+import com.rokyai.springaipoc.chat.repository.ChatHistoryRepository
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
-import org.springframework.ai.chat.messages.AssistantMessage
-import org.springframework.ai.chat.model.ChatModel
-import org.springframework.ai.chat.model.ChatResponse
-import org.springframework.ai.chat.model.Generation
-import org.springframework.ai.chat.prompt.Prompt
+import org.springframework.ai.chat.client.ChatClient
+import org.springframework.ai.tool.ToolCallbackProvider
+import reactor.core.publisher.Mono
 
 /**
  * ChatService 단위 테스트
@@ -20,8 +19,23 @@ import org.springframework.ai.chat.prompt.Prompt
 @DisplayName("ChatService 테스트")
 class ChatServiceTest {
 
-    private val chatModel: ChatModel = mockk()
-    private val chatService = ChatService(chatModel)
+    private val chatHistoryRepository: ChatHistoryRepository = mockk()
+    private val chatClientBuilder: ChatClient.Builder = mockk()
+    private val chatClient: ChatClient = mockk()
+    private val mcpToolProvider: ToolCallbackProvider = mockk()
+    private lateinit var chatService: ChatService
+
+    @BeforeEach
+    fun setup() {
+        every { chatClientBuilder.build() } returns chatClient
+        every { chatHistoryRepository.save(any()) } returns Mono.just(mockk())
+
+        chatService = ChatService(
+            chatHistoryRepository = chatHistoryRepository,
+            chatClientBuilder = chatClientBuilder,
+            mcpToolProvider = mcpToolProvider
+        )
+    }
 
     @Test
     @DisplayName("정상적인 메시지 전송 및 응답 수신 테스트")
@@ -30,14 +44,14 @@ class ChatServiceTest {
         val request = ChatRequest(message = "안녕하세요!")
         val expectedResponse = "안녕하세요! 무엇을 도와드릴까요?"
 
-        val mockGeneration = mockk<Generation>()
-        val mockOutput = mockk<AssistantMessage>()
-        val mockChatResponse = mockk<ChatResponse>()
+        val mockRequestSpec: ChatClient.ChatClientRequestSpec = mockk(relaxed = true)
+        val mockCallResponseSpec: ChatClient.CallResponseSpec = mockk(relaxed = true)
 
-        every { mockOutput.text } returns expectedResponse
-        every { mockGeneration.output } returns mockOutput
-        every { mockChatResponse.result } returns mockGeneration
-        every { chatModel.call(any<Prompt>()) } returns mockChatResponse
+        every { chatClient.prompt() } returns mockRequestSpec
+        every { mockRequestSpec.user(any<String>()) } returns mockRequestSpec
+        every { mockRequestSpec.toolCallbacks(any<ToolCallbackProvider>()) } returns mockRequestSpec
+        every { mockRequestSpec.call() } returns mockCallResponseSpec
+        every { mockCallResponseSpec.content() } returns expectedResponse
 
         // When - ChatService를 통해 메시지 전송
         val response = chatService.chat(request)
@@ -53,7 +67,12 @@ class ChatServiceTest {
         // Given - API 호출이 실패하는 상황 설정
         val request = ChatRequest(message = "테스트 메시지")
 
-        every { chatModel.call(any<Prompt>()) } throws RuntimeException("API 호출 실패")
+        val mockRequestSpec: ChatClient.ChatClientRequestSpec = mockk(relaxed = true)
+
+        every { chatClient.prompt() } returns mockRequestSpec
+        every { mockRequestSpec.user(any<String>()) } returns mockRequestSpec
+        every { mockRequestSpec.toolCallbacks(any<ToolCallbackProvider>()) } returns mockRequestSpec
+        every { mockRequestSpec.call() } throws RuntimeException("API 호출 실패")
 
         // When & Then - 예외가 전파되는지 검증
         val exception = assertThrows(RuntimeException::class.java) {
@@ -72,14 +91,14 @@ class ChatServiceTest {
         val request = ChatRequest(message = "")
         val expectedResponse = "죄송하지만, 메시지를 이해하지 못했습니다."
 
-        val mockGeneration = mockk<Generation>()
-        val mockOutput = mockk<AssistantMessage>()
-        val mockChatResponse = mockk<ChatResponse>()
+        val mockRequestSpec: ChatClient.ChatClientRequestSpec = mockk(relaxed = true)
+        val mockCallResponseSpec: ChatClient.CallResponseSpec = mockk(relaxed = true)
 
-        every { mockOutput.text } returns expectedResponse
-        every { mockGeneration.output } returns mockOutput
-        every { mockChatResponse.result } returns mockGeneration
-        every { chatModel.call(any<Prompt>()) } returns mockChatResponse
+        every { chatClient.prompt() } returns mockRequestSpec
+        every { mockRequestSpec.user(any<String>()) } returns mockRequestSpec
+        every { mockRequestSpec.toolCallbacks(any<ToolCallbackProvider>()) } returns mockRequestSpec
+        every { mockRequestSpec.call() } returns mockCallResponseSpec
+        every { mockCallResponseSpec.content() } returns expectedResponse
 
         // When - 빈 메시지 전송
         val response = chatService.chat(request)

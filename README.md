@@ -1,4 +1,3 @@
-# Spring AI POC - ChatGPT 인사 API
 
 Spring AI를 활용하여 OpenAI의 ChatGPT와 통신하는 RESTful API 프로젝트입니다.
 

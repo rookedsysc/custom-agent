@@ -8,6 +8,16 @@ spring:
         options:
           model: gpt-4o-mini
           temperature: 0.7
+    mcp:
+      client:
+        enabled: true
+        type: ASYNC
+        request-timeout: 15s
+        streamable-http:
+          connections:
+            context7:
+              url: https://mcp.context7.com
+              endpoint: /mcp
   r2dbc:
     url: r2dbc:postgresql://192.168.36.161:5432/spring_ai_poc_db
     username: root
@@ -15,3 +25,8 @@ spring:
   sql:
     init:
       mode: always
+
+logging:
+  level:
+    org.springframework.ai: DEBUG
+    io.modelcontextprotocol: DEBUG
