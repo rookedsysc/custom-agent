@@ -6,25 +6,9 @@ spring:
       api-key: ${OPEN_AI}
       chat:
         options:
-          model: gpt-4o
-          temperature: 0.7
-    mcp:
-      client:
-        enabled: true
-        type: ASYNC
-        request-timeout: 60s
-        streamable-http:
-          connections:
-            context7:
-              url: https://mcp.context7.com
-              endpoint: /mcp
-
-app:
-  perplexity:
-    api-key: ${PERPLEXITY_API_KEY}
-    base-url: https://api.perplexity.ai
-    chat:
-      model: llama-3.1-sonar-small-128k-online
+          model: gpt-5.2
+  main:
+    allow-bean-definition-overriding: true
   r2dbc:
     url: r2dbc:postgresql://192.168.36.161:5432/spring_ai_poc_db
     username: root
@@ -32,6 +16,17 @@ app:
   sql:
     init:
       mode: always
+
+app:
+  openai:
+    api-key: ${OPEN_AI}
+    chat:
+      model: gpt-5.2
+  perplexity:
+    api-key: ${PERPLEXITY_API_KEY}
+    base-url: https://api.perplexity.ai
+    chat:
+      model: sonar-reasoning-pro
 
 logging:
   level:
