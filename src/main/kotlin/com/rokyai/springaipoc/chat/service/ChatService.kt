@@ -7,6 +7,7 @@ import com.rokyai.springaipoc.chat.repository.ChatHistoryRepository
 import kotlinx.coroutines.reactor.awaitSingle
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.tool.ToolCallbackProvider
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.stereotype.Service
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
@@ -24,10 +25,8 @@ import java.time.ZoneOffset
 @Service
 class ChatService(
     private val chatHistoryRepository: ChatHistoryRepository,
-    chatClientBuilder: ChatClient.Builder,
-    private val mcpToolProvider: ToolCallbackProvider
+    @Qualifier("openAiChatClient") private val openAiChatClient: ChatClient,
 ) {
-    private val chatClient: ChatClient = chatClientBuilder.build()
     /**
      * ChatGPT에게 메시지를 전송하고 응답을 받습니다.
      *
@@ -41,9 +40,8 @@ class ChatService(
         // ChatClient를 사용하여 Context7 MCP 도구를 자동으로 활용
         // AI가 필요시 자동으로 라이브러리 문서를 검색하여 더 정확한 답변을 생성합니다
         val generatedMessage = Mono.fromCallable {
-            chatClient.prompt()
+            openAiChatClient.prompt()
                 .user(request.message)
-                .toolCallbacks(mcpToolProvider)
                 .call()
                 .content()
         }
@@ -76,9 +74,8 @@ class ChatService(
         val messageBuilder = StringBuilder()
 
         return Flux.defer {
-            chatClient.prompt()
+            openAiChatClient.prompt()
                 .user(request.message)
-                .toolCallbacks(mcpToolProvider)
                 .stream()
                 .content()
         }

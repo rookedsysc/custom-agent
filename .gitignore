@@ -43,3 +43,5 @@ out/
 .claude
 .gemini
 .github/prompts
+.claude/
+.gemini/

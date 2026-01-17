@@ -20,20 +20,16 @@ import reactor.core.publisher.Mono
 class ChatServiceTest {
 
     private val chatHistoryRepository: ChatHistoryRepository = mockk()
-    private val chatClientBuilder: ChatClient.Builder = mockk()
-    private val chatClient: ChatClient = mockk()
-    private val mcpToolProvider: ToolCallbackProvider = mockk()
+    private val openAiChatClient: ChatClient = mockk()
     private lateinit var chatService: ChatService
 
     @BeforeEach
     fun setup() {
-        every { chatClientBuilder.build() } returns chatClient
         every { chatHistoryRepository.save(any()) } returns Mono.just(mockk())
 
         chatService = ChatService(
             chatHistoryRepository = chatHistoryRepository,
-            chatClientBuilder = chatClientBuilder,
-            mcpToolProvider = mcpToolProvider
+            openAiChatClient = openAiChatClient,
         )
     }
 
@@ -47,7 +43,7 @@ class ChatServiceTest {
         val mockRequestSpec: ChatClient.ChatClientRequestSpec = mockk(relaxed = true)
         val mockCallResponseSpec: ChatClient.CallResponseSpec = mockk(relaxed = true)
 
-        every { chatClient.prompt() } returns mockRequestSpec
+        every { openAiChatClient.prompt() } returns mockRequestSpec
         every { mockRequestSpec.user(any<String>()) } returns mockRequestSpec
         every { mockRequestSpec.toolCallbacks(any<ToolCallbackProvider>()) } returns mockRequestSpec
         every { mockRequestSpec.call() } returns mockCallResponseSpec
@@ -69,7 +65,7 @@ class ChatServiceTest {
 
         val mockRequestSpec: ChatClient.ChatClientRequestSpec = mockk(relaxed = true)
 
-        every { chatClient.prompt() } returns mockRequestSpec
+        every { openAiChatClient.prompt() } returns mockRequestSpec
         every { mockRequestSpec.user(any<String>()) } returns mockRequestSpec
         every { mockRequestSpec.toolCallbacks(any<ToolCallbackProvider>()) } returns mockRequestSpec
         every { mockRequestSpec.call() } throws RuntimeException("API 호출 실패")
@@ -94,7 +90,7 @@ class ChatServiceTest {
         val mockRequestSpec: ChatClient.ChatClientRequestSpec = mockk(relaxed = true)
         val mockCallResponseSpec: ChatClient.CallResponseSpec = mockk(relaxed = true)
 
-        every { chatClient.prompt() } returns mockRequestSpec
+        every { openAiChatClient.prompt() } returns mockRequestSpec
         every { mockRequestSpec.user(any<String>()) } returns mockRequestSpec
         every { mockRequestSpec.toolCallbacks(any<ToolCallbackProvider>()) } returns mockRequestSpec
         every { mockRequestSpec.call() } returns mockCallResponseSpec

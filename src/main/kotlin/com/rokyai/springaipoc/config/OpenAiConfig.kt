@@ -1,17 +1,46 @@
 package com.rokyai.springaipoc.config
 
+import org.springframework.ai.chat.client.ChatClient
+import org.springframework.ai.chat.model.ChatModel
+import org.springframework.ai.openai.OpenAiChatModel
+import org.springframework.ai.openai.OpenAiChatOptions
+import org.springframework.ai.openai.api.OpenAiApi
+import org.springframework.beans.factory.annotation.Value
+import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.context.annotation.Primary
 
-/**
- * OpenAI 설정
- *
- * Spring AI의 OpenAI Auto-Configuration을 사용합니다.
- * application.yml의 spring.ai.openai.* 설정을 통해 자동으로 구성됩니다.
- *
- * 설정 예시:
- * - spring.ai.openai.api-key: API 키
- * - spring.ai.openai.chat.options.model: 사용할 모델 (gpt-4o-mini 등)
- * - spring.ai.openai.chat.options.temperature: 응답의 창의성 수준
- */
 @Configuration
-class OpenAiConfig
+class OpenAiConfig {
+
+    @Value("\${app.openai.api-key}")
+    private lateinit var apiKey: String
+
+    @Value("\${app.openai.chat.model}")
+    private lateinit var model: String
+
+    @Value("\${app.openai.chat.temperature:0.7}")
+    private var temperature: Double = 0.7
+
+    @Bean(name = ["openAiChatModel"])
+    fun openAiChatModel(): ChatModel {
+        val openAiApi = OpenAiApi.builder()
+            .apiKey(apiKey)
+            .build()
+
+        val options = OpenAiChatOptions.builder()
+            .model(model)
+            .temperature(temperature)
+            .build()
+
+        return OpenAiChatModel.builder()
+            .openAiApi(openAiApi)
+            .defaultOptions(options)
+            .build()
+    }
+
+    @Bean(name = ["openAiChatClient"])
+    fun openAiChatClient(): ChatClient {
+        return ChatClient.create(openAiChatModel())
+    }
+}
