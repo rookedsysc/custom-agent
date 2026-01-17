@@ -1,32 +1,31 @@
 package com.rokyai.springaipoc.anki.service
 
 import com.rokyai.springaipoc.anki.constants.ANKI_PROMPT
-import com.rokyai.springaipoc.anki.dto.PerplexitySearchRequest
-import com.rokyai.springaipoc.anki.dto.PerplexitySearchResponse
+import com.rokyai.springaipoc.anki.dto.GeminiDeepResearchRequest
+import com.rokyai.springaipoc.anki.dto.GeminiInteractionResponse
 import com.rokyai.springaipoc.anki.dto.SearchAnkiResponse
 import com.rokyai.springaipoc.chat.dto.ChatRequest
 import com.rokyai.springaipoc.chat.dto.ChatResponse
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.stereotype.Service
 import org.springframework.web.client.RestClient
+import org.springframework.web.client.body
 
 @Service
 class AnkiMakerService(
     @Qualifier("openAiChatClient") private val openAiChatModel: ChatClient,
-    @Qualifier("perplexitySearchRestClient") private val perplexitySearchRestClient: RestClient
+    @Qualifier("geminiDeepResearchRestClient") private val geminiDeepResearchRestClient: RestClient
 ) {
 
     suspend fun searchAndGenerateAnki(request: ChatRequest): SearchAnkiResponse = coroutineScope {
-        val searchDeferred = async { search(request) }
-        val ankiDeferred = async { generateAnkiContent(request) }
-
-        val searchResponse = searchDeferred.await()
-        val ankiResponse = ankiDeferred.await()
+        val searchResponse = search(request)
+        val ankiResponse = generateAnkiContent(request, searchResponse.message)
 
         SearchAnkiResponse(
             searchContent = searchResponse.message,
@@ -34,10 +33,23 @@ class AnkiMakerService(
         )
     }
 
-    private suspend fun generateAnkiContent(request: ChatRequest): ChatResponse = withContext(Dispatchers.IO) {
+    private suspend fun generateAnkiContent(
+        request: ChatRequest,
+        searchContext: String
+    ): ChatResponse = withContext(Dispatchers.IO) {
+        val userPrompt = """
+            # 검색 결과
+            $searchContext
+
+            # 사용자 질문
+            ${request.message}
+
+            위 검색 결과를 참고하여 사용자 질문에 대한 Anki 카드를 생성해주세요.
+        """.trimIndent()
+
         val ankiContent = openAiChatModel.prompt()
             .system(ANKI_PROMPT)
-            .user(request.message)
+            .user(userPrompt)
             .call()
             .content()
             ?: throw IllegalStateException("ChatGPT 응답 생성 실패")
@@ -46,60 +58,80 @@ class AnkiMakerService(
     }
 
     /**
-     * Perplexity Search API를 사용하여 검색을 수행합니다.
+     * Gemini Deep Research API를 사용하여 심층 검색을 수행합니다.
      *
-     * 검색 성능 최적화 설정:
-     * - maxResults: 10개의 검색 결과 반환 (적절한 다양성 확보)
-     * - maxTokens: 25,000 토큰 (충분한 컨텍스트 정보)
-     * - maxTokensPerPage: 2,048 토큰 (각 페이지당 적절한 요약 길이)
-     * - searchRecencyFilter: "month" (최근 1개월 내 최신 정보로 Anki 카드 품질 향상)
-     * - searchLanguageFilter: ["en", "ko"] (영어와 한국어 결과 모두 활용)
+     * Deep Research는 다단계 연구 작업을 자율적으로 계획하고 실행하여
+     * 인용을 포함한 상세 보고서를 생성합니다.
+     *
+     * 작업 흐름:
+     * 1. 비동기 연구 작업 시작 (interaction ID 획득)
+     * 2. 폴링을 통한 작업 상태 확인 (10초 간격)
+     * 3. 완료 시 생성된 보고서 반환
      *
      * @param request 사용자 검색 요청
-     * @return 포맷팅된 검색 결과를 포함하는 ChatResponse
-     * @throws IllegalStateException 검색 API 호출 실패시
+     * @return 생성된 연구 보고서를 포함하는 ChatResponse
+     * @throws IllegalStateException API 호출 실패 또는 타임아웃시
      */
     private suspend fun search(request: ChatRequest): ChatResponse = withContext(Dispatchers.IO) {
-        val searchRequest = PerplexitySearchRequest(
-            query = request.message,
-            maxResults = 10,
-            maxTokens = 25000,
-            maxTokensPerPage = 2048,
-            searchRecencyFilter = "month",
-            searchLanguageFilter = listOf("en", "ko")
+        val searchRequest = GeminiDeepResearchRequest(
+            input = request.message
         )
 
-        val searchResponse = perplexitySearchRestClient
+        val initialResponse = geminiDeepResearchRestClient
             .post()
-            .uri("/search")
+            .uri("/v1beta/interactions")
             .body(searchRequest)
             .retrieve()
-            .body(PerplexitySearchResponse::class.java)
-            ?: throw IllegalStateException("Perplexity Search API 응답 생성 실패")
+            .body<GeminiInteractionResponse>()
+            ?: throw IllegalStateException("Gemini Deep Research API 초기 요청 실패")
 
-        val formattedContent = formatSearchResults(searchResponse)
-        ChatResponse(message = formattedContent)
+        val interactionId = initialResponse.id
+        val researchResult = pollForCompletion(interactionId)
+
+        ChatResponse(message = researchResult)
     }
 
     /**
-     * 검색 결과를 읽기 쉬운 형식으로 포맷팅합니다.
+     * Gemini Deep Research 작업 완료를 폴링으로 확인합니다.
      *
-     * 각 검색 결과는 번호, 제목, URL, 요약, 업데이트 날짜를 포함합니다.
+     * 최대 60분(3600초) 동안 10초 간격으로 상태를 확인합니다.
      *
-     * @param response Perplexity Search API 응답
-     * @return 포맷팅된 검색 결과 문자열
+     * @param interactionId 조회할 Interaction ID
+     * @return 완료된 연구 보고서 텍스트
+     * @throws IllegalStateException 작업 실패 또는 타임아웃시
      */
-    private fun formatSearchResults(response: PerplexitySearchResponse): String {
-        return buildString {
-            appendLine("=== 검색 결과 ===\n")
-            response.results.forEachIndexed { index, result ->
-                appendLine("# ${index + 1}. ${result.title}\n")
-                appendLine("## URL: ${result.url}\n")
-                appendLine("## 요약: \n${result.snippet}")
-                appendLine("## 마지막 업데이트: \n${result.lastUpdated}")
-                appendLine()
+    private suspend fun pollForCompletion(interactionId: String): String = withContext(Dispatchers.IO) {
+        val maxAttempts = 360  // 60분 (10초 * 360회)
+        var attempts = 0
+
+        while (attempts < maxAttempts) {
+            val statusResponse = geminiDeepResearchRestClient
+                .get()
+                .uri("/v1beta/interactions/$interactionId")
+                .retrieve()
+                .body<GeminiInteractionResponse>()
+                ?: throw IllegalStateException("Gemini 상태 조회 실패")
+
+            when (statusResponse.status) {
+                "completed" -> {
+                    return@withContext statusResponse.outputs?.firstOrNull()?.text
+                        ?: throw IllegalStateException("연구 결과가 비어있습니다")
+                }
+                "failed" -> {
+                    throw IllegalStateException(
+                        "Gemini Deep Research 실패: ${statusResponse.error?.message ?: "알 수 없는 오류"}"
+                    )
+                }
+                "in_progress" -> {
+                    delay(10_000)  // 10초 대기
+                    attempts++
+                }
+                else -> {
+                    throw IllegalStateException("알 수 없는 상태: ${statusResponse.status}")
+                }
             }
-            appendLine("총 ${response.results.size}개의 검색 결과")
         }
+
+        throw IllegalStateException("Gemini Deep Research 타임아웃 (60분 초과)")
     }
 }

@@ -1,5 +1,28 @@
 package com.rokyai.springaipoc.anki.constants
 
+/**
+ * ⚠️ 현재 미사용 프롬프트
+ *
+ * ## 생성 배경
+ * Claude Code와 Context7 MCP 서버를 활용한 기술 검색 시스템을 위해 설계되었습니다.
+ * 이 프롬프트는 Claude가 WebSearch와 Context7 도구를 직접 호출하여
+ * 공식 문서와 최신 정보를 기반으로 답변을 생성하도록 유도합니다.
+ *
+ * ## 미사용 이유
+ * AnkiMakerService에서 Gemini Deep Research API를 사용하도록 변경되었습니다.
+ * Gemini Deep Research는 자체적으로 다단계 연구를 계획하고 실행하는 자율 시스템으로,
+ * 외부 프롬프트를 주입하면 오히려 성능이 저하될 수 있습니다.
+ *
+ * - Gemini Deep Research: 자율적 연구 알고리즘 (현재 사용)
+ * - SEARCH_PROMPT: Claude + Context7 기반 검색 (미사용)
+ *
+ * ## 재사용 가능 시나리오
+ * 향후 OpenAI ChatClient와 Context7을 조합한 검색 기능으로 전환할 경우,
+ * 이 프롬프트를 AnkiMakerService.search() 메서드에 적용할 수 있습니다.
+ *
+ * @see com.rokyai.springaipoc.anki.service.AnkiMakerService.search
+ */
+@Suppress("unused")
 const val SEARCH_PROMPT = """
 # 기술 내용 검색 및 답변 프롬프트
 
