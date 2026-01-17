@@ -32,15 +32,43 @@ src/main/kotlin/com/rokyai/springaipoc/
 
 ## 환경 설정
 
-### 1. OpenAI API 키 설정
+### 1. API 키 설정
 
-`.env` 파일을 프로젝트 루트에 생성하고 OpenAI API 키를 설정합니다:
+`.env` 파일을 프로젝트 루트에 생성하고 필요한 API 키들을 설정합니다:
 
 ```env
 OPEN_AI=your-openai-api-key-here
+GEMINI_API_KEY=your-gemini-api-key-here
+PERPLEXITY_API_KEY=your-perplexity-api-key-here  # (선택사항, 레거시)
 ```
 
-### 2. application.yml 설정
+#### Gemini API 키 발급 방법
+
+1. [Google AI Studio](https://aistudio.google.com/app/apikey)에 접속
+2. "Get API Key" 클릭
+3. 새 프로젝트 생성 또는 기존 프로젝트 선택
+4. API 키 생성 및 복사
+5. `.env` 파일에 `GEMINI_API_KEY` 추가
+
+### 2. Gemini Deep Research 설정
+
+`application.yml`에 Gemini API 설정이 포함되어 있습니다:
+
+```yaml
+app:
+  gemini:
+    api-key: ${GEMINI_API_KEY}
+    base-url: https://generativelanguage.googleapis.com
+```
+
+**Gemini Deep Research 특징:**
+- 다단계 연구 작업을 자율적으로 계획하고 실행
+- 웹 검색을 활용한 상세 보고서 생성
+- 인용 포함 (출처 명시)
+- 최대 60분까지 심층 연구 수행
+- 평균 비용: $2-$5 per research
+
+### 3. application.yml 설정
 
 `src/main/resources/application.yml`에서 Spring AI 설정을 확인합니다:
 
@@ -56,6 +84,41 @@ spring:
 ```
 
 ## API 명세
+
+### Anki 암기 카드 생성 API (🆕 Gemini Deep Research 활용)
+
+#### POST /api/v1/anki/download
+
+사용자 메시지를 기반으로 Anki 암기 카드와 검색 결과를 생성하여 zip 파일로 다운로드합니다.
+
+**주요 기능:**
+- **Gemini Deep Research**: 심층 웹 검색을 통한 상세 연구 보고서 생성
+- **OpenAI ChatGPT**: Anki 암기 카드 자동 생성
+- **병렬 처리**: 검색과 카드 생성을 동시에 수행하여 성능 최적화
+
+**요청 (Request)**
+
+```json
+{
+  "message": "스프링 부트의 DI(Dependency Injection)에 대해 설명해주세요"
+}
+```
+
+**응답 (Response)**
+
+- **성공 (200 OK)**: `anki_package.zip` 파일 다운로드
+  - `anki.md`: OpenAI로 생성된 Anki 암기 카드 (Markdown 형식)
+  - `search.md`: Gemini Deep Research로 생성된 심층 연구 보고서 (인용 포함)
+
+**처리 시간:**
+- Gemini Deep Research: 평균 5-15분 (복잡한 주제는 최대 60분)
+- OpenAI 카드 생성: 평균 5-10초
+- 총 소요 시간: 병렬 처리로 가장 긴 작업 시간 기준
+
+**실패 응답:**
+
+- **400 Bad Request**: 빈 메시지 전송
+- **500 Internal Server Error**: API 호출 실패, 타임아웃, 또는 파일 생성 실패
 
 ### ChatGPT 인사 API
 
