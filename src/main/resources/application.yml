@@ -27,6 +27,9 @@ app:
     base-url: https://api.perplexity.ai
     chat:
       model: sonar-reasoning-pro
+  gemini:
+    api-key: ${GEMINI_API_KEY}
+    base-url: https://generativelanguage.googleapis.com
 
 logging:
   level:
